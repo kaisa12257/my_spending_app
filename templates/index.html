@@ -131,17 +131,8 @@ input, select { background-color: var(--input-bg); color: var(--text-color); bor
     💰 소비습관 관리 <span id="userNameDisplay" style="font-size: 0.8em; color: #7f8c8d;"></span>
 </h1>
             <div style="display: flex; align-items: center; gap: 15px;">
-        <!-- [추가] 로그인/회원가입 버튼 그룹 -->
-        <div id="authButtons" style="display: flex; gap: 8px;">
-            <button type="button" onclick="openLoginModal()" 
-                style="padding: 8px 16px; background: #3498db; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px;">
-                로그인
-            </button>
-            <button type="button" onclick="openSignupModal()" 
-                style="padding: 8px 16px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px;">
-                회원가입
-            </button>
-        </div>
+  
+       
             <form action="/" method="get" class="date-picker">
                 <select name="year">
                     
@@ -835,6 +826,7 @@ input, select { background-color: var(--input-bg); color: var(--text-color); bor
     </div>
       
     <script>
+        let editingItemId = null; // 현재 수정 중인 항목의 ID를 저장 (null이면 신규 입력)
     // [1. 데이터 및 상태 변수]
 let expenseDetails = {};
 let selectedDate = ""; 
@@ -863,46 +855,44 @@ window.onload = function() {
 function saveExpense() {
     const category = document.getElementById('expenseCategory').value;
     const place = document.getElementById('expensePlace').value;
-    const amountInput = document.getElementById('expenseAmount');
-    const amount = parseInt(amountInput.value);
-    
-    // 1. 유효성 검사
-    if (!category) { alert("카테고리를 선택하세요!"); return; }
-    if (!place || isNaN(amount)) { alert("내용과 금액을 정확히 입력하세요!"); return; }
+    const amount = parseInt(document.getElementById('expenseAmount').value);
 
-    // 2. 해당 날짜 배열 생성
-    if (!expenseDetails[selectedDate]) {
-        expenseDetails[selectedDate] = [];
+    if (!category || !place || isNaN(amount)) { alert("내용을 입력하세요."); return; }
+
+    if (!expenseDetails[selectedDate]) expenseDetails[selectedDate] = [];
+
+    if (editingItemId) {
+        // --- [수정 모드] ---
+        const items = expenseDetails[selectedDate];
+        const idx = items.findIndex(i => i.id === editingItemId);
+        
+        if (idx > -1) {
+            // 기존 합계에서 예전 금액 차감
+            totalSpending -= items[idx].amount;
+            categorySpending[items[idx].category] -= items[idx].amount;
+
+            // 데이터 업데이트
+            items[idx] = { id: editingItemId, category, place, amount };
+        }
+        editingItemId = null; // 수정 완료 후 초기화
+    } else {
+        // --- [신규 모드] ---
+        const newEntry = { id: Date.now(), category, place, amount };
+        expenseDetails[selectedDate].push(newEntry);
     }
 
-    // 3. 데이터 객체 생성 및 추가
-    const newEntry = {
-        id: Date.now(),
-        category: category,
-        place: place,
-        amount: amount
-    };
-    expenseDetails[selectedDate].push(newEntry);
-
-    // 4. 전역 합계 업데이트
+    // 공통: 합계 가산 및 UI 갱신
     totalSpending += amount;
-    if (categorySpending.hasOwnProperty(category)) {
-        categorySpending[category] += amount;
-    }
-    
-    // 5. UI 동기화 (달력 숫자, 분석 차트, 피드백 등)
-    updateAllUI(selectedDate); 
-    
-    // 6. 창 닫기 및 입력창 초기화
+    categorySpending[category] = (categorySpending[category] || 0) + amount;
+
+    updateAllUI(selectedDate);
     closeModal();
-    document.getElementById('expensePlace').value = "";
-    amountInput.value = "";
 }
 
 // 모달 닫기 함수
 function closeModal() {
-    const modal = document.getElementById('expenseModal');
-    if (modal) modal.style.display = 'none';
+    editingItemId = null; // 수정 중이었더라도 취소하면 ID를 비움
+    document.getElementById('expenseModal').style.display = 'none';
 }
 
 // 2. 모달 닫기 함수 (여기에 붙여넣으세요!)
@@ -1117,7 +1107,9 @@ function removeSavings(id) {
         updateAllUI();   // AI 비서 계산 갱신
     }
 }
-// [5. 달력 칸 그리기 (수정/삭제/더보기 버튼)]
+// [5. 달력 칸 그리기 (금액 표시 + '삭제' 글자 버튼 버전)]
+// [5. 달력 칸 그리기 (금액 뒤 '원' 추가 버전)]
+// [5. 달력 칸 그리기 (파란색 기본 / 5만 1원부터 빨간색 버전)]
 function renderCalendarDay(dateKey) {
     const dayNum = dateKey.split('-')[2];
     const displayArea = document.getElementById(`sum-${dayNum}`);
@@ -1126,27 +1118,40 @@ function renderCalendarDay(dateKey) {
     const items = expenseDetails[dateKey] || [];
     if (items.length === 0) { displayArea.innerHTML = ""; return; }
 
+    // 해당 날짜의 총 지출 계산
+    const dayTotal = items.reduce((sum, item) => sum + item.amount, 0);
+    
+    // 50,001원부터 빨간색(#e74c3c), 그 이하는 파란색(#3498db)
+    const amountColor = dayTotal > 50000 ? "#e74c3c" : "#3498db";
+
     let html = `<div class="daily-sum-list">`;
-    // 기준 변경: 2개만 직접 노출
+    
+    // 지출 내역을 최대 2개까지 표시
     items.slice(0, 2).forEach(item => {
         html += `
-            <div class="expense-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; padding:4px; background:rgba(0,0,0,0.05); border-radius:4px;">
-                <span onclick="editExpense('${dateKey}', ${item.id}, event)" 
-                      style="cursor:pointer; font-size:12px; flex-grow:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:bold;">
-                    • ${item.place}
-                </span>
+            <div class="expense-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; padding:2px; background:rgba(0,0,0,0.03); border-radius:4px; font-size:11px;">
+                <!-- 장소와 금액 (색상 조건 적용) -->
+                <div onclick="editExpense('${dateKey}', ${item.id}, event)" style="cursor:pointer; flex-grow:1; display:flex; justify-content:space-between; overflow:hidden;">
+                    <span style="font-weight:bold; color:#2c3e50; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:50px;">${item.place}</span>
+                    <span style="color:${amountColor}; font-weight:bold; margin-left:3px;">-${item.amount.toLocaleString()}원</span>
+                </div>
+                
+                <!-- '삭제' 버튼 -->
                 <button onclick="deleteItem('${dateKey}', ${item.id}, event)" 
-                        style="color:#e74c3c; background:#ffeaea; border:none; border-radius:3px; padding:2px 5px; font-size:10px; cursor:pointer; font-weight:bold; margin-left:5px;">
+                        style="border:none; background:#ff7675; color:white; cursor:pointer; font-size:9px; padding:2px 4px; margin-left:4px; border-radius:3px; white-space:nowrap;">
                     삭제
                 </button>
             </div>`;
     });
     html += `</div>`;
 
-    // 3개부터 "더보기" 표시
+    // 3개 이상일 때 더보기 표시
     if (items.length > 2) {
-        html += `<div onclick="showDetailPopup('${dateKey}', event)" style="text-align:center; cursor:pointer; font-size:11px; color:#3498db; font-weight:bold; margin-top:2px;">+${items.length-2}개 더보기</div>`;
+        html += `<div onclick="showDetailPopup('${dateKey}', event)" style="text-align:center; cursor:pointer; font-size:10px; color:#3498db; font-weight:bold; margin-top:2px;">
+                    +${items.length-2}개 더보기
+                 </div>`;
     }
+    
     displayArea.innerHTML = html;
 }
 
@@ -1161,22 +1166,24 @@ function handleDayClick(year, month, day, event) {
     document.getElementById('expenseModal').style.display = 'block';
 }
 
-function editExpense(dateKey, id, event) {
+function editExpense(dateKey, itemId, event) {
     if (event) event.stopPropagation();
-    const item = expenseDetails[dateKey].find(i => i.id === id);
-    if (!item) return;
 
-    closeDetailPopup();
-    selectedDate = dateKey;
-    document.getElementById('expenseCategory').value = item.category;
-    document.getElementById('expensePlace').value = item.place;
-    document.getElementById('expenseAmount').value = item.amount;
-    document.getElementById('modalDateTitle').innerText = "내역 수정 중";
+    const items = expenseDetails[dateKey] || [];
+    const item = items.find(i => i.id === itemId);
 
-    deleteItem(dateKey, id, event);
-    document.getElementById('expenseModal').style.display = 'block';
+    if (item) {
+        selectedDate = dateKey;
+        editingItemId = itemId; // 중요: 수정 중인 아이템의 ID를 기록!
+
+        document.getElementById('modalDateTitle').innerText = `${dateKey} 내역 수정`;
+        document.getElementById('expenseCategory').value = item.category;
+        document.getElementById('expensePlace').value = item.place;
+        document.getElementById('expenseAmount').value = item.amount;
+
+        document.getElementById('expenseModal').style.display = 'block';
+    }
 }
-
 function deleteItem(dateKey, id, event) {
    
     if (event) event.stopPropagation();
@@ -1402,57 +1409,21 @@ function processSignup() {
     const userPw = document.getElementById('regPw').value;
     const userPwCheck = document.getElementById('regPwCheck').value;
 
-    // 1. 빈칸 검사 (이건 꼭 남겨둬야 해)
-    if (!name || !userId || !userPw || !userPwCheck) {
-        alert("모든 항목을 입력해주세요.");
-        return;
-    }
+  
 
-    // 2. 비밀번호 재확인 (이것도 필수!)
-    if (userPw !== userPwCheck) {
-        alert("비밀번호가 서로 일치하지 않습니다.");
-        return;
-    }
 
-    // 이제 한글 체크 로직 없이도, 위에서 실시간으로 막아주니까 안심하고 가입 진행!
-    alert(`${name} 관리자님, 가입이 완료되었습니다.`);
     closeSignupModal();
 }
 
-    // 1. 빈칸 검사
-    if (!name || !userId || !userPw || !userPwCheck) {
-        alert("모든 항목을 입력해주세요.");
-        return; // 여기서 멈춤
-    }
 
-    // 2. 아이디 및 비밀번호 한글 체크 (강력 차단)
-    if (koreanRegex.test(userId)) {
-        alert("아이디에는 한글을 사용할 수 없습니다.");
-        return; // 한글이 있으면 여기서 함수 종료
-    }
-    
-    if (koreanRegex.test(userPw)) {
-        alert("비밀번호에는 한글을 사용할 수 없습니다.");
-        return; // 한글이 있으면 여기서 함수 종료
-    }
-
-    // 3. 비밀번호 재확인 일치 검사
-    if (userPw !== userPwCheck) {
-        alert("비밀번호가 서로 일치하지 않습니다. 다시 확인해주세요.");
-        return; // 일치하지 않으면 여기서 멈춤
-    }
 
     // --- 모든 검사를 통과해야만 아래 로직이 실행됨 ---
 
     // 4. 가입 데이터 저장 (로컬스토리지 예시)
-    const userData = {
-        userName: name,
-        userPw: userPw
-    };
+   
     localStorage.setItem('user_' + userId, JSON.stringify(userData));
 
-    // 5. 성공 알림 및 모달 닫기
-    alert(`${name}님, 가입을 축하드립니다!`);
+   
     closeSignupModal();
     
     console.log("서버로 전송 가능한 데이터:", { name, userId, userPw });
@@ -1460,9 +1431,7 @@ function processSignup() {
 
     // ... 기존 대시보드 로직들 ...
 function openLoginModal() {
-    document.getElementById('loginModal').style.display = 'block';
-    // 회원가입 창이 열려있다면 닫아주는 센스
-    document.getElementById('signupModal').style.display = 'none';
+   
 }
 
 function closeLoginModal() {
@@ -1471,11 +1440,7 @@ function closeLoginModal() {
 
 // 기존 processLogin 함수 끝에 모달 닫기 추가
 function processLogin() {
-    // ... 기존 로그인 로직 ...
-    if (로그인성공) {
-        closeLoginModal();
-        document.getElementById('authButtons').style.display = 'none'; // 로그인 후 버튼 숨기기
-    }
+
 }
     // [로그인 처리 로직]
     function processLogin() {
@@ -1485,40 +1450,17 @@ function processLogin() {
         // 로컬 스토리지에서 가입된 정보 확인
         const storedUser = JSON.parse(localStorage.getItem('user_' + inputId));
 
-        if (storedUser && storedUser.userPw === inputPw) {
-            alert(`${storedUser.userName} 관리자님, 환영합니다.`);
-            
-            // 1. 로그인 페이지 숨기기
-            document.getElementById('loginPage').style.display = 'none';
-            
-            // 2. 대시보드 화면(image_1e1abe.png 영역) 보이기
-            document.getElementById('mainDashboard').style.display = 'block';
-            
-            // 대시보드 초기화 (달력 생성 등)
-            initDashboard(); 
-        } else {
-            alert("아이디 또는 비밀번호가 일치하지 않습니다.");
-        }
+       
     }
 
     // 페이지 로드 시 초기 상태 설정
     window.onload = function() {
-        // 처음에는 대시보드를 숨기고 로그인 페이지를 보여줌
-        document.getElementById('mainDashboard').style.display = 'none';
-        document.getElementById('loginPage').style.display = 'block';
+       
     }
 function togglePasswordText(inputId, btnId) {
     const passwordInput = document.getElementById(inputId);
     const btn = document.getElementById(btnId);
 
-    // 각자의 ID를 기반으로 동작하므로 서로 간섭하지 않습니다.
-    if (passwordInput.type === 'password') {
-        passwordInput.type = 'text';
-        btn.innerText = '숨기기';
-    } else {
-        passwordInput.type = 'password';
-        btn.innerText = '보기';
-    }
 }
 </script>
 <!-- 1. 지출 입력 모달창: 자바스크립트 구역 바깥으로 완전히 꺼냈습니다 -->
@@ -1567,15 +1509,7 @@ function togglePasswordText(inputId, btnId) {
                 btn.style.color = isDark ? "#fff" : "#8e44ad";
             }
         }
-        // 회원가입 모달 열기
-function openSignupModal() {
-    document.getElementById('signupModal').style.display = 'block';
-}
 
-// 회원가입 모달 닫기
-function closeSignupModal() {
-    document.getElementById('signupModal').style.display = 'none';
-}
 
 // 가입 처리 로직 (임시)
 function processSignup() {
@@ -1584,17 +1518,8 @@ function processSignup() {
     const pw = document.getElementById('regPw').value;
     const pwCheck = document.getElementById('regPwCheck').value;
 
-    if(!name || !id || !pw) {
-        alert("모든 필드를 입력해주세요!");
-        return;
-    }
-
-    if(pw !== pwCheck) {
-        alert("비밀번호가 일치하지 않습니다.");
-        return;
-    }
-
-    alert(`${name}님,  가입을 환영합니다!`);
+    
+   
     closeSignupModal();
 }
     </script>
@@ -1665,51 +1590,6 @@ function processSignup() {
     <div id="popupContent" style="max-height: 400px; overflow-y: auto;">
         <!-- 자바스크립트로 내역이 채워짐 -->
     </div>
-</div>
-
-
-<!-- 아까 관리자님이 만든 회원가입 모달 코드를 이 아래에 배치 -->
- 
-<div id="signupModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:30px; border-radius:15px; box-shadow:0 0 25px rgba(0,0,0,0.3); z-index:6000; width:350px;">
-    <h2 style="text-align:center;">회원가입</h2>
-    
-    <input type="text" id="regName" placeholder="이름을 입력하세요" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:5px;">
-
-   <!-- 아이디 입력창 수정 -->
-<input type="text" id="regId" placeholder="아이디 (한글 불가)" 
-    oninput="this.value = this.value.replace(/[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/g, '')"
-    style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
-
-<!-- 1. 비밀번호 입력 (id="regPw") -->
-<div style="position: relative; width: 100%; margin-bottom: 10px;">
-    <input type="password" id="regPw" placeholder="비밀번호" 
-        oninput="this.value = this.value.replace(/[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/g, '')"
-        style="width: 100%; padding: 12px; padding-right: 70px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
-    
-    <!-- 첫 번째 버튼은 반드시 'regPw'와 'togglePwBtn'을 인자로 가져야 함 -->
-    <button type="button" id="togglePwBtn" onclick="togglePasswordText('regPw', 'togglePwBtn')" 
-        style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); 
-               background: #eee; border: 1px solid #ccc; padding: 4px 8px; border-radius: 4px; 
-               font-size: 12px; cursor: pointer; color: #555;">보기</button>
-</div>
-
-<!-- 2. 비밀번호 확인 입력 (id="regPwCheck") -->
-<div style="position: relative; width: 100%; margin-bottom: 20px;">
-    <input type="password" id="regPwCheck" placeholder="비밀번호 확인" 
-        oninput="this.value = this.value.replace(/[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/g, '')"
-        style="width: 100%; padding: 12px; padding-right: 70px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
-    
-    <!-- 두 번째 버튼은 반드시 'regPwCheck'와 'togglePwCheckBtn'을 인자로 가져야 함 -->
-    <button type="button" id="togglePwCheckBtn" onclick="togglePasswordText('regPwCheck', 'togglePwCheckBtn')" 
-        style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); 
-               background: #eee; border: 1px solid #ccc; padding: 4px 8px; border-radius: 4px; 
-               font-size: 12px; cursor: pointer; color: #555;">보기</button>
-</div>
-
-<!-- 가입/취소 버튼 영역 -->
-<div style="display:flex; gap:10px;">
-    <button onclick="processSignup()" style="flex:1; padding:12px; background:#27ae60; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">가입하기</button>
-    <button onclick="closeSignupModal()" style="flex:1; padding:12px; background:#eee; border:none; border-radius:8px; cursor:pointer;">취소</button>
 </div>
 </body>
 </html>
