@@ -1,11 +1,57 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+    
     <meta charset="UTF-8">
     <!-- 다른 코드들 (title, link 등)이 여기에 있을 거예요 -->
 
     <!-- 👇 여기서부터 복사해서 붙여넣으세요 -->
     <style>
+        /* 모달 배경 */
+.modal {
+    display: none; 
+    position: fixed;
+    z-index: 1000;
+    left: 0; top: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+/* 모달 박스 */
+.modal-content {
+    background-color: #fff;
+    margin: 10% auto;
+    padding: 20px;
+    border-radius: 12px;
+    width: 300px;
+    position: relative;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+/* 세로 목록 형태의 폼 */
+.vertical-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 비밀번호 입력창 + 버튼 가로 정렬 */
+.password-container {
+    display: flex;
+    gap: 5px;
+}
+
+.password-container input {
+    flex: 1;
+}
+
+/* 닫기 버튼 */
+.close-button {
+    position: absolute;
+    right: 15px; top: 10px;
+    font-size: 20px;
+    cursor: pointer;
+}
         /* 기존 스타일 맨 아래에 추가 */
 /* 기존 스타일을 아래 내용으로 교체 */
 /* 1. 달력 칸 내부 리스트: 높이를 고정해서 칸이 늘어나지 않게 함 */
@@ -119,6 +165,65 @@ input, select { background-color: var(--input-bg); color: var(--text-color); bor
      
 </head>
 <body>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+    // 관리자님의 Supabase 프로젝트 정보
+    const SUPABASE_URL = 'https://dqizgoklyvdhqtjtgpbj.supabase.co'; // image_875154.png 기준
+    const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY'; // 대시보드 API 메뉴에서 복사한 키
+
+    // 엔진 가동!
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    console.log("관리자님, Supabase 연결 엔진이 정상적으로 로드되었습니다.");
+</script>
+
+
+    <!-- 상단 버튼 영역 -->
+<!-- index.html 수정 -->
+<!-- 상단 버튼 영역 -->
+<div id="auth-area" class="auth-buttons" style="display: flex; gap: 8px; padding: 10px;">
+    {% if not is_signed_up %}
+        <!-- 가입 전일 때만 버튼을 보여줍니다 -->
+        
+    {% else %}
+        <!-- 가입이 완료되면 이 자리는 비워집니다 (버튼 사라짐) -->
+        <span style="color: white; font-size: 0.9rem;">반갑습니다!</span>
+        <a href="/logout" style="color: #ff4d4d; text-decoration: none; font-size: 0.8rem;">로그아웃</a>
+    {% endif %}
+</div>
+
+<!-- 알림창(alert) 로직 -->
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <script>alert("{{ messages[0] }}");</script>
+  {% endif %}
+{% endwith %}
+<!-- 회원가입 모달 -->
+<div id="signupModal" class="modal">
+    <!-- 가로 길이는 550px, 화면 상단에서 15% 지점에 딱 고정! -->
+<div class="modal-content" style="width: 600px; margin: 15vh auto; position: relative; padding: 30px; border-radius: 15px; background-color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+        <span class="close-button" onclick="closeSignupModal()">&times;</span>
+        <h2 style="text-align: center;">회원가입</h2>
+        <form id="signupForm" class="vertical-form" onsubmit="handleSignup(event)">
+            <input type="text" id="userName" placeholder="이름" required>
+            <input type="text" id="userId" placeholder="아이디 (한글 불가)" required>
+            
+            <div class="password-container">
+                <input type="password" id="userPw" placeholder="비밀번호" required>
+                <button type="button" onclick="togglePassword('userPw')">보기</button>
+            </div>
+
+            <div class="password-container">
+                <input type="password" id="userPwConfirm" placeholder="비밀번호 확인" required>
+                <button type="button" onclick="togglePassword('userPwConfirm')">보기</button>
+            </div>
+
+            <button type="submit" style="padding: 10px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                가입 완료
+            </button>
+        </form>
+    </div>
+</div>
     <div class="theme-toggle" style="position: absolute; top: 20px; right: 20px; z-index: 1000;">
         <button onclick="toggleDarkMode()" id="darkModeBtn" style="padding: 8px 12px; border-radius: 20px; border: 1px solid #8e44ad; background: white; color: #8e44ad; cursor: pointer; font-weight: bold;">
             🌙 다크 모드
@@ -141,49 +246,23 @@ input, select { background-color: var(--input-bg); color: var(--text-color); bor
 
     <!-- [오른쪽] 날짜 선택 (변경 시 즉시 이동) -->
     <form action="/" method="get" class="date-picker" style="display: flex; gap: 8px; margin: 0;">
-        <!-- 연도 선택: onchange 추가 -->
-        <select name="year" onchange="this.form.submit()" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd;">
-            <option value="2020">2020년</option>
-            <option value="2021">2021년</option>
-            <option value="2022">2022년</option>
-            <option value="2023">2023년</option>
-            <option value="2024">2024년</option>
-            <option value="2025">2025년</option>
-            <option value="2026" selected>2026년</option>
-            <option value="2027">2027년</option>
-            <option value="2028">2028년</option>
-            <option value="2029">2029년</option>
-            <option value="2030">2030년</option>
-        </select>
-
-        <!-- 월 선택: onchange 추가 -->
-        <select name="month" onchange="this.form.submit()" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd;">
-            <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>
-            <option value="1">1월</option>
-            <option value="2">2월</option>
-            <option value="3">3월</option>
-            <option value="4">4월</option>
-            <option value="5">5월</option>
-            <option value="6">6월</option>
-            <option value="7">7월</option>
-            <option value="8">8월</option>
-            <option value="9">9월</option>
-            <option value="10">10월</option>
-            <option value="11">11월</option>
-            <option value="12">12월</option>
-        </select>
+       
 
         <!-- 버튼은 나중에 기능을 넣으실 수 있도록 일단 type="submit"으로 유지하거나 필요 없으면 지우셔도 됩니다 -->
         <!-- 기존 이동 버튼 영역을 대체 -->
-<div class="auth-buttons" style="display: flex; gap: 8px;">
-    <button onclick="openSignupModal()" 
+
+<div id="authButtons" style="display: flex; gap: 10px; align-items: center;">
+    <!-- 회원가입 버튼 -->
+    <button type="button" onclick="openSignupModal()" 
             style="padding: 8px 16px; background: #34495e; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold;">
         회원가입
     </button>
+    <!-- 로그인 버튼 -->
     <button onclick="openLoginModal()" 
             style="padding: 8px 16px; background: #3498db; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold;">
         로그인
     </button>
+
 </div>
 </div>
         </header>
@@ -858,33 +937,33 @@ function saveExpense() {
     const place = document.getElementById('expensePlace').value;
     const amount = parseInt(document.getElementById('expenseAmount').value);
 
-    if (!category || !place || isNaN(amount)) { alert("내용을 입력하세요."); return; }
-
-    if (!expenseDetails[selectedDate]) expenseDetails[selectedDate] = [];
-
-    if (editingItemId) {
-        // --- [수정 모드] ---
-        const items = expenseDetails[selectedDate];
-        const idx = items.findIndex(i => i.id === editingItemId);
-        
-        if (idx > -1) {
-            // 기존 합계에서 예전 금액 차감
-            totalSpending -= items[idx].amount;
-            categorySpending[items[idx].category] -= items[idx].amount;
-
-            // 데이터 업데이트
-            items[idx] = { id: editingItemId, category, place, amount };
-        }
-        editingItemId = null; // 수정 완료 후 초기화
-    } else {
-        // --- [신규 모드] ---
-        const newEntry = { id: Date.now(), category, place, amount };
-        expenseDetails[selectedDate].push(newEntry);
+    if (!category || !place || isNaN(amount)) {
+        alert("모든 항목을 올바르게 입력해 주세요.");
+        return;
     }
 
-    // 공통: 합계 가산 및 UI 갱신
-    totalSpending += amount;
-    categorySpending[category] = (categorySpending[category] || 0) + amount;
+    if (editingItemId) {
+        // 수정 모드: 기존 아이템 찾아서 업데이트
+        const items = expenseDetails[selectedDate];
+        const itemIdx = items.findIndex(i => i.id === editingItemId);
+        if (itemIdx > -1) {
+            // 기존 금액 차감 후 새 금액 합산
+            totalSpending -= items[itemIdx].amount;
+            categorySpending[items[itemIdx].category] -= items[itemIdx].amount;
+            
+            items[itemIdx] = { id: editingItemId, category, place, amount };
+            
+            totalSpending += amount;
+            categorySpending[category] += amount;
+        }
+    } else {
+        // 추가 모드
+        const newItem = { id: Date.now(), category, place, amount };
+        if (!expenseDetails[selectedDate]) expenseDetails[selectedDate] = [];
+        expenseDetails[selectedDate].push(newItem);
+        totalSpending += amount;
+        categorySpending[category] = (categorySpending[category] || 0) + amount;
+    }
 
     updateAllUI(selectedDate);
     closeModal();
@@ -936,33 +1015,83 @@ function updateAllUI(dateKey) {
 }
 
 
-function processSignup() {
-    const name = document.getElementById('regName').value;
-    const userId = document.getElementById('regId').value;
-    const userPw = document.getElementById('regPw').value;
-    const userPwCheck = document.getElementById('regPwCheck').value;
+// [통합된 회원가입 처리 함수]
+// 1. 함수 시작 부분에 반드시 'async'가 있어야 합니다.
+async function processSignup() {
+    try {
+        // 1. 입력값 가져오기
+        const name = document.getElementById('regName').value;
+        const userId = document.getElementById('regId').value;
+        const userPw = document.getElementById('regPw').value;
+        const userPwCheck = document.getElementById('regPwCheck').value;
 
-    // 1. 빈칸 검사
-    if (!name || !userId || !userPw || !userPwCheck) {
-        alert("모든 항목을 입력해주세요.");
-        return;
+        // 2. 유효성 검사 (반드시 함수 내부에 위치)
+        if (!name || !userId || !userPw) {
+            alert("모든 정보를 입력해주세요!");
+            return; 
+        }
+        if (userPw !== userPwCheck) {
+            alert("비밀번호가 일치하지 않습니다.");
+            return;
+        }
+
+        // 3. Supabase DB 전송 (async 함수 안이라서 await가 정상 작동함)
+        const { data, error } = await _supabase
+            .from('users')
+            .insert([{ 
+                user_id: userId, 
+                user_pw: userPw, 
+                user_name: name 
+            }]);
+
+        // 4. 결과 처리
+        if (error) {
+            console.error("가입 오류:", error);
+            alert("회원가입 실패: " + error.message);
+            return;
+        }
+
+        alert("축하합니다, 관리자님! 데이터가 성공적으로 저장되었습니다.");
+        
+        const authButtons = document.getElementById('authButtons');
+        if (authButtons) authButtons.style.display = 'none';
+
+    } catch (err) {
+        console.error("시스템 예외 발생:", err);
     }
-
-    // 2. 비밀번호 일치 검사
-    if (userPw !== userPwCheck) {
-        alert("비밀번호가 일치하지 않습니다.");
-        return;
-    }
-
-    // ✅ 가입 성공 시 상단 제목 옆에 (이름) 표시
-    const nameDisplay = document.getElementById('userNameDisplay');
-    if (nameDisplay) {
-        nameDisplay.innerText = `(${name})`;
-    }
-
-    alert(`${name} 관리자님, 가입이 완료되었습니다.`);
-    closeSignupModal(); // 가입 창 닫기
 }
+    // 2. Supabase DB에 사용자 등록 (실제 회원가입 로직)
+ const { data, error } = await _supabase
+            .from('users')
+            .insert([{ user_id: userId, user_pw: userPw, user_name: name }]);
+
+        if (error) {
+            console.error("가입 오류:", error);
+            alert("회원가입 중 오류가 발생했습니다.");
+            return;
+        }
+
+        alert("축하합니다, 관리자님! 데이터가 성공적으로 저장되었습니다.");
+        
+
+
+    // 3. 가입 성공 시 버튼 숨기기
+    alert(`${name} 관리자님, 회원가입이 완료되었습니다!`);
+    
+    // 버튼을 감싸는 div(id="authButtons")를 찾아 숨김
+    const authArea = document.getElementById('authButtons');
+    if (authArea) {
+        authArea.style.display = 'none'; 
+    }
+    
+    // 관리자님 성함 표시
+    const statusArea = document.getElementById('userStatus');
+    if (statusArea) {
+        statusArea.innerText = `${name} 관리자님 접속 중`;
+    }
+
+    closeSignupModal();
+
 
 function openSignupModal() { document.getElementById('signupModal').style.display = 'block'; }
 function closeSignupModal() { document.getElementById('signupModal').style.display = 'none'; }
@@ -1398,23 +1527,13 @@ function editFixedExpense(id) {
         removeFixedExpense(id); // 기존 거 지우고 수정 모드로 전환
     }
 }
-function processSignup() {
-    const name = document.getElementById('regName').value;
-    const userId = document.getElementById('regId').value;
-    const userPw = document.getElementById('regPw').value;
-    const userPwCheck = document.getElementById('regPwCheck').value;
 
-   function processSignup() {
-    const name = document.getElementById('regName').value;
-    const userId = document.getElementById('regId').value;
-    const userPw = document.getElementById('regPw').value;
-    const userPwCheck = document.getElementById('regPwCheck').value;
 
   
 
 
     closeSignupModal();
-}
+
 
 
 
@@ -1422,13 +1541,14 @@ function processSignup() {
 
     // 4. 가입 데이터 저장 (로컬스토리지 예시)
    
-    localStorage.setItem('user_' + userId, JSON.stringify(userData));
-
+    // 삭제 대신 이렇게 바꾸면 에러가 나지 않습니다.
+const infoToSave = { id: userId, userName: name }; // 직접 바구니를 만듦
+localStorage.setItem('currentUser', JSON.stringify(infoToSave));
    
     closeSignupModal();
     
-    console.log("서버로 전송 가능한 데이터:", { name, userId, userPw });
-}
+    
+
 
     // ... 기존 대시보드 로직들 ...
 function openLoginModal() {
@@ -1513,16 +1633,7 @@ function togglePasswordText(inputId, btnId) {
 
 
 // 가입 처리 로직 (임시)
-function processSignup() {
-    const name = document.getElementById('regName').value;
-    const id = document.getElementById('regId').value;
-    const pw = document.getElementById('regPw').value;
-    const pwCheck = document.getElementById('regPwCheck').value;
 
-    
-   
-    closeSignupModal();
-}
 // 회원가입 모달 열기
 function openSignupModal() {
     const modal = document.getElementById('signupModal');
@@ -1553,7 +1664,7 @@ function openLoginModal() {
         <option value="문화/오락">문화/오락</option>
         <option value="기타">기타</option>
     </select>
-    <input type="text" id="expensePlace" placeholder="어디에 쓰셨나요?" style="width:100%; padding:10px; margin-bottom:10px; box-sizing:border-box;">
+    ut type="text" id="expensePlace" placeholder="어디에 쓰셨나요?" style="width:100%; padding:10px; margin-bottom:10px; box-sizing:border-box;">
     <input type="number" id="expenseAmount" placeholder="금액 입력" style="width:100%; padding:10px; margin-bottom:20px; box-sizing:border-box;">
     <div style="display:flex; gap:10px;">
         <button onclick="saveExpense()" style="flex:1; padding:10px; background:#3498db; color:white; border:none; border-radius:8px; cursor:pointer;">저장</button>
@@ -1577,7 +1688,7 @@ function openLoginModal() {
             <option value="" disabled selected>카테고리 선택</option>
             <option value="주거/통신">🏠 주거/통신</option>
             <option value="식비">🍔 식비</option>
-            <option value="의류/미용">✨ 의류/미용</option>
+         <inp   <option value="의류/미용">✨ 의류/미용</option>
             <option value="의료/건강">🏥 의료/건강</option>
             <option value="문화/오락">🎬 문화/오락</option>
             <option value="교통">🚌 교통</option>
@@ -1603,5 +1714,62 @@ function openLoginModal() {
         <!-- 자바스크립트로 내역이 채워짐 -->
     </div>
 </div>
+<script>
+// 1. 모달 열기/닫기
+function openSignupModal() {
+    document.getElementById('signupModal').style.display = 'block';
+}
+
+function closeSignupModal() {
+    document.getElementById('signupModal').style.display = 'none';
+}
+
+// 2. 한글 입력 방지 로직 (아이디, 비번, 비번확인)
+const forbiddenFields = ['userId', 'userPw', 'userPwConfirm'];
+forbiddenFields.forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', function(e) {
+        const regex = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/g;
+        if (regex.test(e.target.value)) {
+            alert("한글은 입력할 수 없습니다.");
+            e.target.value = e.target.value.replace(regex, '');
+        }
+    });
+});
+
+// 3. 비밀번호 보기/숨기기
+function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    const btn = window.event.target;
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerText = '숨기기';
+    } else {
+        input.type = 'password';
+        btn.innerText = '보기';
+    }
+}
+</script>
+<script>
+// 4. 회원가입 완료 처리 (이름 띄우기)
+function handleSignup(event) {
+    event.preventDefault(); // 페이지 새로고침 방지
+
+    const name = document.getElementById('userName').value;
+    const pw = document.getElementById('userPw').value;
+    const pwConfirm = document.getElementById('userPwConfirm').value;
+
+    if (pw !== pwConfirm) {
+        alert("비밀번호가 일치하지 않습니다.");
+        return;
+    }
+
+    // 가입 완료 후 처리
+    alert(`${name}님, 회원가입이 완료되었습니다!`);
+    
+    // 모달 닫기
+    closeSignupModal();
+}
+</script>
 </body>
 </html>
