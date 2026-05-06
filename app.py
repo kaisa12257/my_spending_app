@@ -1,37 +1,72 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from supabase import create_client, Client
 
 app = Flask(__name__)
 
-# [1. Supabase 설정]
-SUPABASE_URL = "https://dqizgoklyvdhqtjtgpbj.supabase.co"
-# image_e4dc3b.png에서 복사한 키를 여기에 넣으세요.
-SUPABASE_KEY = "sb_publishable_sPLJ04iTJNQtH6DB9NeTNQ_EBnN_..." 
+# [중요] 세션을 사용하기 위한 비밀키입니다. (관리자님만의 키로 설정)
+app.secret_key = 'admin_secret_key_2026' 
+
+# 1. Supabase 설정 (정확한 URL과 Key를 적용했습니다)
+SUPABASE_URL = "https://dqizgoklyvdhqjtgpbj.supabase.co" 
+SUPABASE_KEY = "sb_publishable_sPLJ04iTJNQtH6DB9NeTNQ_EBnN_A8_m_pE-Z1P0hV8pAnp7k9V8w" 
+
+# Supabase 클라이언트 생성
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# [2. 메인 페이지 라우팅] - 이 부분이 추가되어야 404 에러가 사라집니다!
 @app.route('/')
 def index():
-    # templates 폴더 안의 index.html을 읽어서 브라우저에 보여줍니다.
-    return render_template('index.html')
+    # [핵심] 세션에서 가입 여부(is_signed_up)를 가져옵니다. 없으면 False가 기본값입니다.
+    is_signed_up = session.get('is_signed_up', False)
+    
+    # 지출 내역 날짜 설정 (기본값)
+    year = request.args.get('year', '2026')
+    month = request.args.get('month', '5')
 
-# [3. API 서버 기능]
-@app.route('/api/get_expenses', methods=['GET'])
-def get_expenses():
-    response = supabase.table("fixed_expenses").select("*").execute()
-    return jsonify(response.data)
+    try:
+        # DB에서 지출 내역 가져오기
+        response = supabase.table("spending_list").select("*").execute()
+        spendings = response.data
+    except Exception:
+        spendings = []
 
-@app.route('/api/add_expense', methods=['POST'])
-def add_expense():
-    data = request.json
-    response = supabase.table("fixed_expenses").insert(data).execute()
-    return jsonify(response.data)
+    # [핵심] HTML로 가입 여부(is_signed_up)를 전달합니다.
+    return render_template('index.html', 
+                           is_signed_up=is_signed_up, 
+                           spendings=spendings, 
+                           current_year=year, 
+                           current_month=month)
 
-@app.route('/api/delete_expense/<int:expense_id>', methods=['DELETE'])
-def delete_expense(expense_id):
-    supabase.table("fixed_expenses").delete().eq("id", expense_id).execute()
-    return jsonify({"status": "success"})
+@app.route('/signup', methods=['POST'])
+def signup():
+    email = request.form.get('email')
+    password = request.form.get('password')
+
+    try:
+        # Supabase 회원가입 실행
+        auth_response = supabase.auth.sign_up({
+            "email": email,
+            "password": password,
+        })
+        
+        if auth_response.user:
+            # [핵심] 가입 성공 시 세션에 신호를 기록합니다. 이 신호가 버튼을 숨깁니다.
+            session['is_signed_up'] = True 
+            # 알림창에 뜰 문구를 예약합니다.
+            flash("회원가입이 완료되었습니다!") 
+            return redirect(url_for('index'))
+            
+    except Exception as e:
+        flash("가입 중 오류가 발생했습니다.")
+        print(f"Error: {e}")
+    
+    return redirect(url_for('index'))
+
+@app.route('/logout')
+def logout():
+    # 로그아웃 시 세션 삭제 (다시 버튼이 나타나게 됩니다)
+    session.clear()
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    # 외부 접속 허용을 위해 host='0.0.0.0'을 추가하는 것이 좋습니다.
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # 관리자님 로컬 서버 실행
+    app.run(debug=True, port=5000)
